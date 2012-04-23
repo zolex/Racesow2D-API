@@ -71,10 +71,21 @@ try {
 	
 	while ($map = $stmt->fetchObject()) {
 		
-		$stmt2 = $dbh->prepare("SELECT `player_id`, `time`, `created_at` FROM `highscores` WHERE `map_id` = :map_id AND `created_at` > :from AND `created_at` < :to ORDER BY `time` ASC");
+		$stmt3 = $dbh->prepare("SELECT `time` FROM `highscores` WHERE `player_id` = :player_id AND `map_id` = :map_id LIMIT 1");
+		$stmt3->bindValue("player_id", $player->id);
+		$stmt3->bindValue("map_id", $map->id);
+		if (!$stmt3->execute()) {
+
+			throw new Exception("Error loading own highscore");
+		}
+
+		$ownRecord = $stmt3->fetchColumn();
+
+		$stmt2 = $dbh->prepare("SELECT `player_id`, `time`, `created_at` FROM `highscores` WHERE `map_id` = :map_id AND `created_at` > :from AND `created_at` < :to AND `time` < :time ORDER BY `time` ASC");
 		$stmt2->bindValue("map_id", $map->id);
 		$stmt2->bindValue("from", $source['updated']);
 		$stmt2->bindValue("to", $now);
+		$stmt2->bindValue("time", $ownRecord);
 		if (!$stmt2->execute()) {
 		
 			throw new Exception("Error loading races");
