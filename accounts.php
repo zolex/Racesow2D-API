@@ -6,29 +6,60 @@ require('accounts.class.php'); // Accounts
 
 Accounts::$dbh = $dbh;
 
+$writer = new XMLWriter('1.0', 'utf-8');
+$writer->openURI('php://output');
+$writer->setIndent(false); 
+$writer->startDocument();
+
+$writer->startElement('account');
+
 try {
 	switch ($source['action']) {
 
 		case 'check':
-			Accounts::isNameAvailable($source['name']);
+			$writer->startElement('available');
+			$writer->text((int)Accounts::isNameAvailable($source['name']));
+			$writer->endELement();
 			break;
 			
 		case 'auth':
-			var_dump(Accounts::authenticate($source['name'], $source['pass']));
+			$writer->startElement('session');
+			$writer->text(Accounts::authenticate($source['name'], $source['pass']));
+			$writer->endElement();
 			break;
 			
 		case 'pass':
-			var_dump(Accounts::setPassword($source['name'], $source['newpass'], $source['oldpass']));
+			$success = Accounts::setPassword($source['pass'], $source['session']);
+			$writer->startElement('result');
+			$writer->text((int)$success);
+			$writer->endElement();
+			if ($success) {
+			
+				$writer->startElement('session');
+				$writer->text(Accounts::renewSession($source['session']));
+				$writer->endElement();
+			}
 			break;
 			
 		case 'session':
-			var_dump(Accounts::checkSession($source['id']));
+			Accounts::checkSession($source['id']);
 			break;
 			
 		default:
 			throw new Exception("No such action");
 	}
+
 } catch (Exception $e) {
 
-	echo "Error: ". $e->getMessage();
+	$writer->startElement('error');
+	$writer->startCData();
+	$writer->text($e->getMessage());
+	$writer->endCData();
+	$writer->endElement();
 }
+
+$writer->endElement();
+
+header('Content-type: text/xml');
+$writer->endDocument();
+echo $writer->outputMemory();

@@ -61,29 +61,24 @@ class Accounts {
 	 * @param String $name
 	 * @param String $password
 	 */
-	public static function setPassword($name, $newPassword, $oldPassword = NULL) {
+	public static function setPassword($password, $session) {
 	
-		if (empty($newPassword)) {
-		
-			return false;
-		}
-	
-		if (!self::isNameAvailable($name, $oldPassword)) {
+		if (empty($password) || empty($session)) {
 		
 			return false;
 		}
 		
 		$salt = substr(Encrypter::password(uniqid(microtime())), 0, 32);
-		$stmt = self::$dbh->prepare("INSERT INTO `players` (`name`, `password`, `salt`, `points`, `created_at`) VALUES(:name, :password, :salt, 0, NOW()) ON DUPLICATE KEY UPDATE `password` = VALUES(`password`), `salt` = VALUES(`salt`);");
-		$stmt->bindValue("name", $name);
+		$stmt = self::$dbh->prepare("UPDATE `players` SET `password` = :password, `salt` = :salt WHERE `session` = :session LIMIT 1");
 		$stmt->bindValue("salt", $salt);
-		$stmt->bindValue("password", Encrypter::password($newPassword, $salt));
+		$stmt->bindValue("password", Encrypter::password($password, $salt));
+		$stmt->bindValue("session", Encrypter::decryptSession($session));
 		if (!$stmt->execute()) {
 		
 			throw new Exception("Could not insert/update player");
 		}
 		
-		return true;
+		return $stmt->rowCount() == 1;
 	}
 	
 	/**
@@ -159,7 +154,51 @@ class Accounts {
 			throw new Exception("Could not create session");
 		}
 		
-		return Encrypter::encryptSession($sessionID);
+		if ($stmt->rowCount() == 1) {
+		
+			return Encrypter::encryptSession($sessionID);
+			
+		} else {
+		
+			return false;
+		}
+	}
+	/**
+	 * Renew a new session
+	 *
+	 * @param String $name
+	 * @return String
+	 */
+	public static function renewSession($oldSessionID) {
+	
+		do {
+		
+			$newSessionID = Encrypter::password(uniqid(microtime()));
+			$stmt = self::$dbh->prepare("SELECT COUNT(`id`) FROM `players` WHERE `session` = :session LIMIT 1");
+			$stmt->bindValue("session", $newSessionID);
+			if (!$stmt->execute()) {
+	
+				throw new Exception("Could not check session");
+			}
+			
+		} while($stmt->fetchColumn());
+		
+		$stmt = self::$dbh->prepare("UPDATE `players` SET `session` = :new_session WHERE `session` = :old_session LIMIT 1");
+		$stmt->bindValue("new_session", $newSessionID);
+		$stmt->bindValue("old_session", Encrypter::decryptSession($oldSessionID));
+		if (!$stmt->execute()) {
+	
+			throw new Exception("Could not create session");
+		}
+		
+		if ($stmt->rowCount() == 1) {
+		
+			return Encrypter::encryptSession($newSessionID);
+			
+		} else {
+		
+			return false;
+		}
 	}
 	
 	public static function checkSession($sessionID) {
