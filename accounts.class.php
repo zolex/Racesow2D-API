@@ -1,5 +1,7 @@
 <?php
 
+require('../encrypter.php'); // Encrypter
+
 /**
  * Class to manage accounts
  *

@@ -2,8 +2,7 @@
 
 $source = $_GET;
 require('../dbh.php'); // $dbh
-require('../encrypter.php'); // Encrypter
-require('accounts.class.php'); // Encrypter
+require('accounts.class.php'); // Accounts
 
 Accounts::$dbh = $dbh;
 
