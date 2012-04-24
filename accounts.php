@@ -23,9 +23,16 @@ try {
 			break;
 			
 		case 'auth':
-			$writer->startElement('session');
-			$writer->text(Accounts::authenticate($source['name'], $source['pass']));
+			$session = Accounts::authenticate($source['name'], $source['pass']);
+			$writer->startElement('result');
+			$writer->text((int)($session !== false));
 			$writer->endElement();
+			if ($session !== false) {
+			
+				$writer->startElement('session');
+				$writer->text($session);
+				$writer->endElement();
+			}
 			break;
 			
 		case 'pass':
