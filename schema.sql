@@ -61,10 +61,15 @@ SET character_set_client = utf8;
 CREATE TABLE `players` (
   `id` int(10) unsigned NOT NULL auto_increment,
   `name` varchar(255) NOT NULL,
+  `email` varchar(255) default NULL,
+  `password` varchar(64) default NULL,
+  `salt` varchar(32) default NULL,
+  `session` varchar(64) default NULL,
   `points` int(10) unsigned NOT NULL default '0',
   `created_at` datetime NOT NULL,
-  PRIMARY KEY  (`id`)
-) ENGINE=MyISAM AUTO_INCREMENT=39 DEFAULT CHARSET=utf8;
+  PRIMARY KEY  (`id`),
+  UNIQUE KEY `unique_name` (`name`)
+) ENGINE=MyISAM AUTO_INCREMENT=44 DEFAULT CHARSET=utf8;
 SET character_set_client = @saved_cs_client;
 
 --
@@ -92,4 +97,4 @@ SET character_set_client = @saved_cs_client;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2012-04-23 23:09:30
+-- Dump completed on 2012-04-25 16:25:31
