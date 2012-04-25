@@ -1,6 +1,6 @@
 <?php
 
-$source = $_POST;
+$source = $_GET;
 require('../dbh.php'); // $dbh
 require('accounts.class.php'); // Accounts
 
@@ -81,6 +81,14 @@ try {
 				$writer->text(Accounts::createSession($source['name'], false));
 				$writer->endElement();
 			}
+			$writer->endElement();
+			break;
+			
+		case 'recover':
+			$writer->startElement('recovery');
+			$writer->startElement('result');
+			$writer->text((int)Accounts::sendRecoveryCode($source['email']));
+			$writer->endElement();
 			$writer->endElement();
 			break;
 			

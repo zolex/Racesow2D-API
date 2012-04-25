@@ -122,11 +122,23 @@ class Accounts {
 	
 		if (!self::isNameAvailable($name)) {
 
-			return false;
+			throw new Exception("Name is already registered.");
+		}
+		
+		$stmt = self::$dbh->prepare("SELECT `id` FROM `players` WHERE `email` = :email LIMIT 1");
+		$stmt->bindValue("email", $email);
+		if (!$stmt->execute()) {
+		
+			throw new Exception("Could not check email");
+		}
+		
+		if ($stmt->fetchColumn()) {
+		
+			throw new Exception("E-Mail address is already registered.");
 		}
 		
 		$salt = substr(Encrypter::password(uniqid(microtime())), 0, 32);
-		$stmt = self::$dbh->prepare("INSERT INTO `players` (`name`, `password`, `salt`, `email`) VALUES(:name, :password, :salt, :email) ON DUPLICATE KEY UPDATE `password` = VALUES(`password`), `salt` = VALUES(`salt`), `email` = VALUES(`email`)");
+		$stmt = self::$dbh->prepare("INSERT INTO `players` (`name`, `password`, `salt`, `email`, `created_at`) VALUES(:name, :password, :salt, :email, NOW()) ON DUPLICATE KEY UPDATE `password` = VALUES(`password`), `salt` = VALUES(`salt`), `email` = VALUES(`email`)");
 		$stmt->bindValue("name", $name);
 		$stmt->bindValue("email", $email);
 		$stmt->bindValue("salt", $salt);
@@ -137,7 +149,12 @@ class Accounts {
 		}
 		
 		$result = $stmt->rowCount();
-		return ($result == 1 || $result == 2);
+		if ($result != 1 && $result != 2) {
+		
+			throw new Exception("Could not complete registration. Please try again.");
+		}
+		
+		return true;
 	}
 	
 	/**
@@ -157,6 +174,61 @@ class Accounts {
 		}
 		
 		return $stmt->fetchObject();
+	}
+	
+	/**
+	 * Send a recovery code via email
+	 * 
+	 * @param String $email
+	 * @return boolean
+	 */
+	public static function sendRecoveryCode($email) {
+	
+		do {
+		
+			$code = substr(md5(uniqid(microtime())), 0, 6);
+			$stmt = self::$dbh->prepare("SELECT `id` FROM `players` WHERE `recovery_code` = :code LIMIT 1");
+			$stmt->bindValue("code", $code);
+			if (!$stmt->execute()) {
+		
+				throw new Exception("Could not create recovery code.");
+			}
+			
+		} while ($stmt->fetchColumn());
+		
+		$stmt = self::$dbh->prepare("UPDATE `players` SET `recovery_code` = :code WHERE `email` = :email LIMIT 1");
+		$stmt->bindValue("email", $email);
+		$stmt->bindValue("code", $code);
+		if (!$stmt->execute()) {
+		
+			throw new Exception("Could not set recovery code.");
+		}
+		
+		if ($stmt->rowCount() != 1) {
+		
+			throw new Exception("E-Mail address not found.");
+		}
+		
+		$stmt = self::$dbh->prepare("SELECT `name` FROM `players` WHERE `email` = :email LIMIT 1");
+		$stmt->bindValue("email", $email);
+		if (!$stmt->execute()) {
+		
+			throw new Exception("Could not select player");
+		}
+		
+		if (!$name = $stmt->fetchColumn()) {
+		
+			throw new Exception("E-Mail address not found.");
+		}
+		
+		$subject = "Racesow password recovery";
+		$message = "Hello $name,\r\n\r\nwe received a password revocery request for your Racesow account.\r\n" .
+			"If you did not request a password recovery you can irgnore this E-Mail.\r\n\r\n" .
+			"Your recovery code: '$code'\r\n\r\n" .
+			"Enter this code under Settings -> Password recovery.\r\n" .
+			"Have fun!";
+		$headers = "From: noreply@warsow-race.net";
+		return mail($email, $subject , $message, $headers);
 	}
 	
 	/**
@@ -226,7 +298,7 @@ class Accounts {
 			$stmt->bindValue("session", $newSessionID);
 			if (!$stmt->execute()) {
 	
-				throw new Exception("Could not check session");
+				throw new Exception("Could not create session");
 			}
 			
 		} while($stmt->fetchColumn());
