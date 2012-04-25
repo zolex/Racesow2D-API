@@ -1,33 +1,63 @@
 <?php
 
-set_time_limit(0);
-
 $source = $_POST;
 
+$writer = new XMLWriter('1.0', 'utf-8');
+$writer->openURI('php://output');
+$writer->setIndent(false); 
+$writer->startDocument();
+
 require('../api_key.php');
-if (is_array($source) && count($source) &&
-	array_key_exists('map', $source) &&
-	array_key_exists('player', $source) &&
-	array_key_exists('time', $source) &&
-	array_key_exists('key', $source) &&
-	$source['key'] == $apiKey) {
-	
-	require('../dbh.php');	
-	
-	try {
-		$stmt = $dbh->prepare("SELECT id FROM `maps` WHERE `filename` = :filename LIMIT 1;");
-		$stmt->bindValue('filename', $source['map']);
+require('../dbh.php');	
+require('accounts.class.php');
+Accounts::$dbh = $dbh;
 
-		if (!$stmt->execute() || !$map = $stmt->fetchObject()) {
+try {
 
-			throw new Exception("could not select maps");
+	if (!is_array($source) || !count($source) ||
+		!array_key_exists('map', $source) ||
+		!array_key_exists('time', $source) ||
+		!array_key_exists('key', $source) ||
+		$source['key'] != $apiKey) {
+	
+		throw new Exception("Invalid request");
+	}
+	
+	if (empty($source['player']) && empty($source['session'])) {
+	
+		throw new Exception("No name or session given");
+	}
+	
+	$writer->startElement("submission");
+
+	$stmt = $dbh->prepare("SELECT id FROM `maps` WHERE `filename` = :filename LIMIT 1;");
+	$stmt->bindValue('filename', $source['map']);
+
+	if (!$stmt->execute() || !$map = $stmt->fetchObject()) {
+
+		throw new Exception("could not select maps");
+	}
+
+	// get player by session
+	if (array_key_exists('session', $source) && !empty($source['session'])) {
+	
+		if (!$player = Accounts::getPlayerBySession($source['session'])) {
+		
+			throw new Exception("Could not find session");
 		}
-
-		$stmt = $dbh->prepare("SELECT id FROM `players` WHERE `name` = :name LIMIT 1;");
+		
+		$writer->startElement("session");
+		$writer->text(Accounts::renewSession($source['session']));
+		$writer->endElement();
+	
+	// get player by name or insert
+	} else {
+	
+		$stmt = $dbh->prepare("SELECT * FROM `players` WHERE `name` = :name LIMIT 1;");
 		$stmt->bindValue('name', $source['player']);
 		if (!$stmt->execute()) {
 
-			throw new Exception("could not select player");
+			throw new Exception("Could not select player");
 		}
 
 		if (!$player = $stmt->fetchObject()) {
@@ -36,90 +66,123 @@ if (is_array($source) && count($source) &&
 			$stmt->bindValue('name', $source['player']);
 			if (!$stmt->execute()) {
 
-				throw new Exception("could not insert player");
+				throw new Exception("Could not insert player");
 			}
 
 			$player = (object)array('id' => $dbh->lastInsertId());
+		
+		// if player is registered
+		} else if ($player->password != NULL || $player->session != NULL) {
+			
+			throw new Exception("Player '". $source['player'] ."' must use his session");
 		}
-
-		$stmt = $dbh->prepare("INSERT INTO `races` (`map_id`, `player_id`, `time`, `created_at`) VALUES(:map_id, :player_id, :time, NOW());");
-		$stmt->bindValue("map_id", $map->id);
-		$stmt->bindValue("player_id", $player->id);
-		$stmt->bindValue("time", $source['time']);
-		if (!$stmt->execute()) {
-
-			throw new Exception("could not insert race");
-		}
-
-		$stmt = $dbh->prepare("INSERT INTO `highscores` (`map_id`, `player_id`, `time`, `races`, `created_at`) VALUES(:map_id, :player_id, :time, :races, NOW()) ON DUPLICATE KEY UPDATE `races` = `races` + 1, `created_at` = IF( VALUES(`time`) < `time` OR `time` = 0, VALUES(`created_at`), `created_at`), `time` = IF( VALUES(`time`) < `time` OR `time` = 0, VALUES(`time`), `time`);");
-		$stmt->bindValue("map_id", $map->id);
-		$stmt->bindValue("player_id", $player->id);
-		$stmt->bindValue("time", $source['time']);
-		$stmt->bindValue("races", 1);
-		if (!$stmt->execute()) {
-
-			throw new Exception("could not update highscores");
-		}
-
-		// recalculate points
-		$stmt = $dbh->prepare("UPDATE `highscores` SET `points` = 0 WHERE `map_id` = :map_id");
-		$stmt->bindValue("map_id", $map->id);
-		if (!$stmt->execute()) {
-
-			throw new Exception("could not update highscores");
-		}
-
-		$limit = 50;
-		$stmt = $dbh->prepare("SELECT `player_id` FROM `highscores` WHERE `map_id` = :map_id ORDER BY `time` ASC LIMIT " . $limit);
-		$stmt->bindValue("map_id", $map->id);
-		if (!$stmt->execute()) {
-
-			throw new Exception("could not select highscores");
-		}
-
-		$pos = 0;
-		while ($position = $stmt->fetchObject()) {
-
-			$pos++;
-
-			$points = $limit + 1 - $pos;
-			switch ($pos) {
-
-				case 1:
-					$points += 20;
-					break;
-
-				case 2:
-					$points += 11;
-					break;
-
-				case 3:
-					$points += 7;
-					break;
-			}
-
-			$stmt2 = $dbh->prepare("UPDATE `highscores` SET `points` = :points WHERE `map_id` = :map_id AND `player_id` = :player_id LIMIT 1;");
-			$stmt2->bindValue("points", $points);
-			$stmt2->bindValue("map_id", $map->id);
-			$stmt2->bindValue("player_id", $position->player_id);
-			if (!$stmt2->execute()) {
-
-				throw new Exception("could not update highscores");
-			}
-		}
-
-		$stmt = $dbh->prepare("UPDATE `players` `p` SET `points` = (SELECT SUM(`points`) FROM `highscores` `h` WHERE `h`.`player_id` = `p`.`id`)");
-		if (!$stmt->execute()) {
-
-			throw new Exception("could not update players");
-		}
-
-	} catch (Exception $e) {
-
-		echo $e->getMessage();
 	}
 
-} else {
+	// get the old points on the map
+	$stmt = $dbh->prepare("SELECT `points` FROM `highscores` WHERE `player_id` = :player_id AND `map_id` = :map_id LIMIT 1");
+	$stmt->bindValue("map_id", $map->id);
+	$stmt->bindValue("player_id", $player->id);
+	if (!$stmt->execute()) {
 
-	echo 'invalid request';
+		throw new Exception("Could not select old points");
+	}
+	
+	$oldPoints = (int)$stmt->fetchColumn();
+	
+	// add the new race
+	$stmt = $dbh->prepare("INSERT INTO `races` (`map_id`, `player_id`, `time`, `created_at`) VALUES(:map_id, :player_id, :time, NOW());");
+	$stmt->bindValue("map_id", $map->id);
+	$stmt->bindValue("player_id", $player->id);
+	$stmt->bindValue("time", $source['time']);
+	if (!$stmt->execute()) {
+
+		throw new Exception("could not insert race");
+	}
+
+	// insert or update highscores
+	$stmt = $dbh->prepare("INSERT INTO `highscores` (`map_id`, `player_id`, `time`, `races`, `created_at`) VALUES(:map_id, :player_id, :time, :races, NOW()) ON DUPLICATE KEY UPDATE `races` = `races` + 1, `created_at` = IF( VALUES(`time`) < `time` OR `time` = 0, VALUES(`created_at`), `created_at`), `time` = IF( VALUES(`time`) < `time` OR `time` = 0, VALUES(`time`), `time`);");
+	$stmt->bindValue("map_id", $map->id);
+	$stmt->bindValue("player_id", $player->id);
+	$stmt->bindValue("time", $source['time']);
+	$stmt->bindValue("races", 1);
+	if (!$stmt->execute()) {
+
+		throw new Exception("could not update highscores");
+	}
+
+	// reset points for map
+	$stmt = $dbh->prepare("UPDATE `highscores` SET `points` = 0 WHERE `map_id` = :map_id");
+	$stmt->bindValue("map_id", $map->id);
+	if (!$stmt->execute()) {
+
+		throw new Exception("could not update highscores");
+	}
+
+	// calculate new points on map
+	$limit = 50;
+	$stmt = $dbh->prepare("SELECT `player_id` FROM `highscores` WHERE `map_id` = :map_id ORDER BY `time` ASC LIMIT " . $limit);
+	$stmt->bindValue("map_id", $map->id);
+	if (!$stmt->execute()) {
+
+		throw new Exception("could not select highscores");
+	}
+
+	$pos = 0;
+	while ($position = $stmt->fetchObject()) {
+
+		$pos++;
+
+		$points = $limit + 1 - $pos;
+		switch ($pos) {
+
+			case 1:
+				$points += 20;
+				break;
+
+			case 2:
+				$points += 11;
+				break;
+
+			case 3:
+				$points += 7;
+				break;
+		}
+
+		$stmt2 = $dbh->prepare("UPDATE `highscores` SET `points` = :points WHERE `map_id` = :map_id AND `player_id` = :player_id LIMIT 1;");
+		$stmt2->bindValue("points", $points);
+		$stmt2->bindValue("map_id", $map->id);
+		$stmt2->bindValue("player_id", $position->player_id);
+		if (!$stmt2->execute()) {
+
+			throw new Exception("could not update highscores");
+		}
+		
+		if ($position->player_id == $player->id) {
+		
+			$newPoints = $points;
+		}
+	}
+
+	// update overall points
+	$stmt = $dbh->prepare("UPDATE `players` `p` SET `points` = (SELECT SUM(`points`) FROM `highscores` `h` WHERE `h`.`player_id` = `p`.`id`)");
+	if (!$stmt->execute()) {
+
+		throw new Exception("could not update players");
+	}
+	
+	$writer->startElement("points");
+	$writer->text($newPoints - $oldPoints);
+	$writer->endElement();
+	
+	$writer->endElement();
+
+} catch (Exception $e) {
+
+	$writer->startElement('error');
+	$writer->text($e->getMessage());
+	$writer->endElement();
 }
+
+header('Content-type: text/xml');
+$writer->endDocument();
+echo $writer->outputMemory();
