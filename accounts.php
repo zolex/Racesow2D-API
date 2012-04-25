@@ -69,6 +69,21 @@ try {
 			$writer->endElement();
 			break;
 			
+		case 'register':
+			$writer->startElement('registration');
+			$success = Accounts::register($source['name'], $source['pass'], $source['email']);
+			$writer->startElement('result');
+			$writer->text((int)$success);
+			$writer->endElement();
+			if ($success) {
+			
+				$writer->startElement('session');
+				$writer->text(Accounts::createSession($source['name'], false));
+				$writer->endElement();
+			}
+			$writer->endElement();
+			break;
+			
 		default:
 			throw new Exception("No such action");
 	}
