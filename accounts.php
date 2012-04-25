@@ -1,6 +1,6 @@
 <?php
 
-$source = $_GET;
+$source = $_POST;
 require('../dbh.php'); // $dbh
 require('accounts.class.php'); // Accounts
 
@@ -8,7 +8,7 @@ Accounts::$dbh = $dbh;
 
 $writer = new XMLWriter('1.0', 'utf-8');
 $writer->openURI('php://output');
-$writer->setIndent(false); 
+$writer->setIndent(false);
 $writer->startDocument();
 
 $writer->startElement('account');
@@ -17,12 +17,15 @@ try {
 	switch ($source['action']) {
 
 		case 'check':
+			$writer->startElement('checkname');
 			$writer->startElement('available');
 			$writer->text((int)Accounts::isNameAvailable($source['name']));
+			$writer->endELement();
 			$writer->endELement();
 			break;
 			
 		case 'auth':
+			$writer->startElement('auth');
 			$session = Accounts::authenticate($source['name'], $source['pass']);
 			$writer->startElement('result');
 			$writer->text((int)($session !== false));
@@ -33,9 +36,11 @@ try {
 				$writer->text($session);
 				$writer->endElement();
 			}
+			$writer->endElement();
 			break;
 			
 		case 'pass':
+			$writer->startElement('pass');
 			$success = Accounts::setPassword($source['pass'], $source['session']);
 			$writer->startElement('result');
 			$writer->text((int)$success);
@@ -46,10 +51,22 @@ try {
 				$writer->text(Accounts::renewSession($source['session']));
 				$writer->endElement();
 			}
+			$writer->endElement();
 			break;
 			
 		case 'session':
-			Accounts::checkSession($source['id']);
+			$writer->startElement('checksession');
+			$success = Accounts::checkSession($source['id']);
+			$writer->startElement('result');
+			$writer->text((int)$success);
+			$writer->endElement();
+			if ($success) {
+			
+				$writer->startElement('session');
+				$writer->text(Accounts::renewSession($source['id']));
+				$writer->endElement();
+			}
+			$writer->endElement();
 			break;
 			
 		default:
@@ -59,9 +76,7 @@ try {
 } catch (Exception $e) {
 
 	$writer->startElement('error');
-	$writer->startCData();
 	$writer->text($e->getMessage());
-	$writer->endCData();
 	$writer->endElement();
 }
 
