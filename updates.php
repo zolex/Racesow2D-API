@@ -11,26 +11,48 @@ $writer->startDocument();
 
 try {
 
-	if (empty($source['name'])) {
+	if (empty($source['name']) && empty($source['session'])) {
 	
-		throw new Exception("no player given");
+		throw new Exception("No player or session given");
 	}
 	
 	require('../dbh.php');
+	require('accounts.class.php');
+	Accounts::$dbh = $dbh;
 	
 	$writer->startElement('update');
 	
-	// get the passed player
-	$stmt = $dbh->prepare("SELECT * FROM `players` WHERE `name` = :name");
-	$stmt->bindValue("name", $source['name']);
-	if (!$stmt->execute()) {
+	if (array_key_exists('session', $source) && !empty($source['session'])) {
 	
-		throw new Exception("Error loading player '". $source['name'] . "'");
-	}
+		// get the  player by session
+		if (!$player = Accounts::getPlayerBySession($source['session'])) {
+		
+			throw new Exception("Could not find player by session");
+		}
+		
+		$writer->startElement('session');
+		$writer->text(Accounts::renewSession($source['session']));
+		$writer->endElement();
+		
+	} else {
 	
-	if (!$player = $stmt->fetchObject()) {
-	
-		throw new Exception("Could not find player '". $source['name'] . "'");
+		// get the  player by name
+		$stmt = $dbh->prepare("SELECT * FROM `players` WHERE `name` = :name LIMIT 1");
+		$stmt->bindValue("name", $source['name']);
+		if (!$stmt->execute()) {
+		
+			throw new Exception("Error loading player '". $source['name'] . "'");
+		}
+		
+		if (!$player = $stmt->fetchObject()) {
+		
+			throw new Exception("Could not find player '". $source['name'] . "'");
+		}
+		
+		if ($player->password != NULL || $player->session != NULL) {
+		
+			throw new Exception("Player '". $source['name'] . "' must use his session");
+		}
 	}
 	
 	$writer->startElement('name');
@@ -141,9 +163,7 @@ try {
 } catch (Exception $e) {
 
 	$writer->startElement('error');
-	$writer->startCData();
 	$writer->text($e->getMessage());
-	$writer->endCData();
 	$writer->endElement();
 }
 	
