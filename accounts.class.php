@@ -112,6 +112,54 @@ class Accounts {
 	}
 	
 	/**
+	  * Register a name
+	  *
+	  * @param String $name
+	  * @param String $password
+	  * @param String $email
+	  */
+	public static function register($name, $password, $email) {
+	
+		if (!self::isNameAvailable($name)) {
+
+			return false;
+		}
+		
+		$salt = substr(Encrypter::password(uniqid(microtime())), 0, 32);
+		$stmt = self::$dbh->prepare("INSERT INTO `players` (`name`, `password`, `salt`, `email`) VALUES(:name, :password, :salt, :email) ON DUPLICATE KEY UPDATE `password` = VALUES(`password`), `salt` = VALUES(`salt`), `email` = VALUES(`email`)");
+		$stmt->bindValue("name", $name);
+		$stmt->bindValue("email", $email);
+		$stmt->bindValue("salt", $salt);
+		$stmt->bindValue("password", Encrypter::password($password, $salt));
+		if (!$stmt->execute()) {
+		
+			throw new Exception("Could not register player");
+		}
+		
+		$result = $stmt->rowCount();
+		return ($result == 1 || $result == 2);
+	}
+	
+	/**
+	 * Get a player by his session
+	 *
+	 * @param String $sessionID
+	 * @return Object
+	 */
+	public static function getPlayerBySession($sessionID) {
+	
+		$sessionID = Encrypter::decryptSession($sessionID);
+		$stmt = self::$dbh->prepare("SELECT * FROM `players` WHERE `session` = :session LIMIT 1");
+		$stmt->bindValue("session", $sessionID);
+		if (!$stmt->execute()) {
+		
+			throw new Exception("Could not load player by session");
+		}
+		
+		return $stmt->fetchObject();
+	}
+	
+	/**
 	 * Create a new session for the given player
 	 *
 	 * @param String $name
@@ -201,6 +249,11 @@ class Accounts {
 		}
 	}
 	
+	/**
+	 * Check if the session exists
+	 *
+	 * @param String $sessionID
+	 */
 	public static function checkSession($sessionID) {
 	
 		$sessionID = Encrypter::decryptSession($sessionID);
