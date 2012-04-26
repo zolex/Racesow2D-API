@@ -232,6 +232,50 @@ class Accounts {
 	}
 	
 	/**
+	 * Send a new password to the user
+	 * 
+	 * @param String $code
+	 * @return boolean
+	 */
+	public static function generatePassword($code) {
+	
+		if (strlen($code) != 6) {
+		
+			throw new Exception("Invalid code");
+		}
+		
+		$stmt = self::$dbh->prepare("SELECT `name` FROM `players` WHERE `recovery_code` = :code LIMIT 1");
+		$stmt->bindValue("code", $code);
+		if (!$stmt->execute()) {
+		
+			throw new Exception("Could not select player");
+		}
+		
+		if (!$name = $stmt->fetchColumn()) {
+		
+			throw new Exception("Code not found.");
+		}
+	
+		$password = substr(md5(uniqid(microtime())), 0, 6);
+		$salt = substr(Encrypter::password(uniqid(microtime())), 0, 32);
+		$stmt = self::$dbh->prepare("UPDATE `players` SET `password` = :password, `salt` = :salt, `recovery_code` = NULL WHERE `recovery_code` = :code LIMIT 1");
+		$stmt->bindValue("salt", $salt);
+		$stmt->bindValue("password", Encrypter::password($password, $salt));
+		$stmt->bindValue("code", $code);
+		if (!$stmt->execute()) {
+		
+			throw new Exception("Could not set new password");
+		}
+		
+		if ($stmt->rowCount() != 1) {
+		
+			throw new Exception("Code not found");
+		}
+		
+		return self::createSession($name, false);
+	}
+	
+	/**
 	 * Create a new session for the given player
 	 *
 	 * @param String $name

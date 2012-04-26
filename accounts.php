@@ -100,6 +100,14 @@ try {
 			$writer->endElement();
 			break;
 			
+		case 'newpass':
+			$writer->startElement('newpass');
+			$writer->startElement('session');
+			$writer->text(Accounts::generatePassword($source['code']));
+			$writer->endElement();
+			$writer->endElement();
+			break;
+			
 		default:
 			throw new Exception("No such action");
 	}
