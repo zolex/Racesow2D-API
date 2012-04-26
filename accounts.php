@@ -1,6 +1,14 @@
 <?php
 
-$source = $_POST;
+if ($_GET['source'] == 'get') {
+
+	$source = $_GET;
+	
+} else {
+
+	$source = $_POST;
+}
+
 require('../dbh.php'); // $dbh
 require('accounts.class.php'); // Accounts
 

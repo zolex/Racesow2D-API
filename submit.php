@@ -1,6 +1,13 @@
 <?php
 
-$source = $_POST;
+if ($_GET['source'] == 'get') {
+
+	$source = $_GET;
+	
+} else {
+
+	$source = $_POST;
+}
 
 $writer = new XMLWriter('1.0', 'utf-8');
 $writer->openURI('php://output');
@@ -12,6 +19,11 @@ require('../dbh.php');
 require('accounts.class.php');
 Accounts::$dbh = $dbh;
 
+define("INTERNAL_ERROR", 1);
+define("SESSION_INVALID", 2);
+define("NO_PLAYER", 3);
+define("NO_MAP", 3);
+
 try {
 
 	if (!is_array($source) || !count($source) ||
@@ -20,12 +32,12 @@ try {
 		!array_key_exists('key', $source) ||
 		$source['key'] != $apiKey) {
 	
-		throw new Exception("Invalid request");
+		throw new Exception("Invalid request", INTERNAL_ERROR);
 	}
 	
 	if (empty($source['player']) && empty($source['session'])) {
 	
-		throw new Exception("No name or session given");
+		throw new Exception("No name or session given", NO_PLAYER);
 	}
 	
 	$writer->startElement("submission");
@@ -35,12 +47,12 @@ try {
 
 	if (!$stmt->execute()) {
 
-		throw new Exception("could not select map");
+		throw new Exception("could not select map", INTERNAL_ERROR);
 	}
 	
 	if (!$map = $stmt->fetchObject()) {
 	
-		throw new Exception("Map not found");
+		throw new Exception("Map not found", NO_MAP);
 	}
 
 	// get player by session
@@ -48,7 +60,7 @@ try {
 	
 		if (!$player = Accounts::getPlayerBySession($source['session'])) {
 		
-			throw new Exception("Could not find session");
+			throw new Exception("Could not find session", SESSION_INVALID);
 		}
 		
 		$writer->startElement("session");
@@ -62,7 +74,7 @@ try {
 		$stmt->bindValue('name', $source['player']);
 		if (!$stmt->execute()) {
 
-			throw new Exception("Could not select player");
+			throw new Exception("Could not select player", INTERNL_ERROR);
 		}
 
 		if (!$player = $stmt->fetchObject()) {
@@ -71,7 +83,7 @@ try {
 			$stmt->bindValue('name', $source['player']);
 			if (!$stmt->execute()) {
 
-				throw new Exception("Could not insert player");
+				throw new Exception("Could not insert player", INTERNAL_ERROR);
 			}
 
 			$player = (object)array('id' => $dbh->lastInsertId());
@@ -79,7 +91,7 @@ try {
 		// if player is registered
 		} else if ($player->password != NULL || $player->session != NULL) {
 			
-			throw new Exception("Player '". $source['player'] ."' must use his session");
+			throw new Exception("Player '". $source['player'] ."' must use his session", SESSION_INVALID);
 		}
 	}
 
@@ -89,7 +101,7 @@ try {
 	$stmt->bindValue("player_id", $player->id);
 	if (!$stmt->execute()) {
 
-		throw new Exception("Could not select old points");
+		throw new Exception("Could not select old points", INTERNAL_ERROR);
 	}
 	
 	$oldPoints = (int)$stmt->fetchColumn();
@@ -101,7 +113,7 @@ try {
 	$stmt->bindValue("time", $source['time']);
 	if (!$stmt->execute()) {
 
-		throw new Exception("could not insert race");
+		throw new Exception("could not insert race", INTERNAL_ERROR);
 	}
 
 	// insert or update highscores
@@ -112,7 +124,7 @@ try {
 	$stmt->bindValue("races", 1);
 	if (!$stmt->execute()) {
 
-		throw new Exception("could not update highscores");
+		throw new Exception("could not update highscores", INTERNAL_ERROR);
 	}
 
 	// reset points for map
@@ -120,7 +132,7 @@ try {
 	$stmt->bindValue("map_id", $map->id);
 	if (!$stmt->execute()) {
 
-		throw new Exception("could not update highscores");
+		throw new Exception("could not update highscores", INTERNAL_ERROR);
 	}
 
 	// calculate new points on map
@@ -129,7 +141,7 @@ try {
 	$stmt->bindValue("map_id", $map->id);
 	if (!$stmt->execute()) {
 
-		throw new Exception("could not select highscores");
+		throw new Exception("could not select highscores", INTERNAL_ERROR);
 	}
 
 	$pos = 0;
@@ -159,7 +171,7 @@ try {
 		$stmt2->bindValue("player_id", $position->player_id);
 		if (!$stmt2->execute()) {
 
-			throw new Exception("could not update highscores");
+			throw new Exception("could not update highscores", INTERNAL_ERROR);
 		}
 		
 		if ($position->player_id == $player->id) {
@@ -172,7 +184,7 @@ try {
 	$stmt = $dbh->prepare("UPDATE `players` `p` SET `points` = (SELECT SUM(`points`) FROM `highscores` `h` WHERE `h`.`player_id` = `p`.`id`)");
 	if (!$stmt->execute()) {
 
-		throw new Exception("could not update players");
+		throw new Exception("could not update players", INTERNAL_ERROR);
 	}
 	
 	$writer->startElement("points");
@@ -185,6 +197,9 @@ try {
 
 	$writer->startElement('error');
 	$writer->text($e->getMessage());
+	$writer->endElement();
+	$writer->startElement('code');
+	$writer->text($e->getCode());
 	$writer->endElement();
 }
 

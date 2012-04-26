@@ -1,6 +1,17 @@
 <?php
 
-$source = $_POST;
+if ($_GET['source'] == 'get') {
+
+	$source = $_GET;
+	
+} else {
+
+	$source = $_POST;
+}
+
+define("INTERNAL_ERROR", 1);
+define("SESSION_INVALID", 2);
+define("NO_PLAYER", 3);
 
 $now = date("Y-m-d H:i:s");
 
@@ -13,7 +24,7 @@ try {
 
 	if (empty($source['name']) && empty($source['session'])) {
 	
-		throw new Exception("No player or session given");
+		throw new Exception("No player or session given", NO_PLAYER);
 	}
 	
 	require('../dbh.php');
@@ -27,7 +38,7 @@ try {
 		// get the  player by session
 		if (!$player = Accounts::getPlayerBySession($source['session'])) {
 		
-			throw new Exception("Could not find player by session");
+			throw new Exception("Could not find player by session", SESSION_INVALID);
 		}
 		
 		$writer->startElement('session');
@@ -41,17 +52,17 @@ try {
 		$stmt->bindValue("name", $source['name']);
 		if (!$stmt->execute()) {
 		
-			throw new Exception("Error loading player '". $source['name'] . "'");
+			throw new Exception("Error loading player '". $source['name'] . "'", INTERNAL_ERROR);
 		}
 		
 		if (!$player = $stmt->fetchObject()) {
 		
-			throw new Exception("Could not find player '". $source['name'] . "'");
+			throw new Exception("Could not find player '". $source['name'] . "'", NO_PLAYER);
 		}
 		
 		if ($player->password != NULL || $player->session != NULL) {
 		
-			throw new Exception("Player '". $source['name'] . "' must use his session");
+			throw new Exception("Player '". $source['name'] . "' must use his session", SESSION_INVALID);
 		}
 	}
 	
@@ -71,7 +82,7 @@ try {
 	$stmt = $dbh->prepare("SELECT id FROM `players` ORDER BY `points` DESC");
 	if (!$stmt->execute()) {
 	
-		throw new Exception("Error loading players");
+		throw new Exception("Error loading players", INTERNAL_ERROR);
 	}
 	
 	$position = 0;
@@ -88,7 +99,7 @@ try {
 	$stmt->bindValue("player_id", $player->id);
 	if (!$stmt->execute()) {
 	
-		throw new Exception("Error loading map IDs");
+		throw new Exception("Error loading map IDs", INTERNAL_ERROR);
 	}
 	
 	while ($map = $stmt->fetchObject()) {
@@ -98,7 +109,7 @@ try {
 		$stmt3->bindValue("map_id", $map->id);
 		if (!$stmt3->execute()) {
 
-			throw new Exception("Error loading own highscore");
+			throw new Exception("Error loading own highscore", INTERNAL_ERROR);
 		}
 
 		$ownRecord = $stmt3->fetchColumn();
@@ -110,7 +121,7 @@ try {
 		$stmt2->bindValue("time", $ownRecord);
 		if (!$stmt2->execute()) {
 		
-			throw new Exception("Error loading races");
+			throw new Exception("Error loading races", INTERNAL_ERROR);
 		}
 		
 		$beatenBy = array();
@@ -124,7 +135,7 @@ try {
 			$stmt3->bindValue("id", $highscore->player_id);
 			if (!$stmt3->execute()) {
 			
-				throw new Exception("Error loading player '". $highscore->player_id ."'");
+				throw new Exception("Error loading player '". $highscore->player_id ."'", INTERNAL_ERROR);
 			}
 			
 			$beatenBy[] = array(
@@ -164,6 +175,9 @@ try {
 
 	$writer->startElement('error');
 	$writer->text($e->getMessage());
+	$writer->endElement();
+	$writer->startElement('code');
+	$writer->text($e->getCode());
 	$writer->endElement();
 }
 	
