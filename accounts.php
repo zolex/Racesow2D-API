@@ -1,6 +1,6 @@
 <?php
 
-$source = $_GET;
+$source = $_POST;
 require('../dbh.php'); // $dbh
 require('accounts.class.php'); // Accounts
 

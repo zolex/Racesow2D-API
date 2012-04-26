@@ -30,12 +30,17 @@ try {
 	
 	$writer->startElement("submission");
 
-	$stmt = $dbh->prepare("SELECT id FROM `maps` WHERE `filename` = :filename LIMIT 1;");
+	$stmt = $dbh->prepare("SELECT `id` FROM `maps` WHERE `filename` = :filename LIMIT 1;");
 	$stmt->bindValue('filename', $source['map']);
 
-	if (!$stmt->execute() || !$map = $stmt->fetchObject()) {
+	if (!$stmt->execute()) {
 
-		throw new Exception("could not select maps");
+		throw new Exception("could not select map");
+	}
+	
+	if (!$map = $stmt->fetchObject()) {
+	
+		throw new Exception("Map not found");
 	}
 
 	// get player by session
