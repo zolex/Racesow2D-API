@@ -179,15 +179,8 @@ try {
 			$newPoints = $points;
 		}
 	}
-
-	// update overall points
-	$stmt = $dbh->prepare("UPDATE `players` `p` SET `points` = (SELECT SUM(`points`) FROM `highscores` `h` WHERE `h`.`player_id` = `p`.`id`)");
-	if (!$stmt->execute()) {
-
-		throw new Exception("could not update players", INTERNAL_ERROR);
-	}
 	
-	$writer->startElement("points");
+	$writer->startElement("points");	
 	$writer->text($newPoints - $oldPoints);
 	$writer->endElement();
 	
