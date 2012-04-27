@@ -30,7 +30,7 @@ CREATE TABLE `highscores` (
   `points` int(10) unsigned NOT NULL default '0',
   `created_at` datetime NOT NULL,
   PRIMARY KEY  (`map_id`,`player_id`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 SET character_set_client = @saved_cs_client;
 
 --
@@ -48,7 +48,7 @@ CREATE TABLE `maps` (
   `download` varchar(255) default NULL,
   `filename` varchar(255) NOT NULL,
   PRIMARY KEY  (`id`)
-) ENGINE=MyISAM AUTO_INCREMENT=204 DEFAULT CHARSET=utf8;
+) ENGINE=InnoDB AUTO_INCREMENT=611 DEFAULT CHARSET=utf8;
 SET character_set_client = @saved_cs_client;
 
 --
@@ -65,11 +65,12 @@ CREATE TABLE `players` (
   `password` varchar(64) default NULL,
   `salt` varchar(32) default NULL,
   `session` varchar(64) default NULL,
+  `recovery_code` varchar(6) default NULL,
   `points` int(10) unsigned NOT NULL default '0',
   `created_at` datetime NOT NULL,
   PRIMARY KEY  (`id`),
   UNIQUE KEY `unique_name` (`name`)
-) ENGINE=MyISAM AUTO_INCREMENT=44 DEFAULT CHARSET=utf8;
+) ENGINE=InnoDB AUTO_INCREMENT=6699 DEFAULT CHARSET=utf8;
 SET character_set_client = @saved_cs_client;
 
 --
@@ -85,7 +86,7 @@ CREATE TABLE `races` (
   `time` float NOT NULL,
   `created_at` datetime NOT NULL,
   KEY `player_map` (`map_id`,`player_id`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 SET character_set_client = @saved_cs_client;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
@@ -97,4 +98,4 @@ SET character_set_client = @saved_cs_client;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2012-04-25 16:25:31
+-- Dump completed on 2012-04-27 23:01:33
