@@ -26,6 +26,8 @@ define("NO_MAP", 3);
 
 try {
 
+	$writer->startElement("submission");
+
 	if (!is_array($source) || !count($source) ||
 		!array_key_exists('map', $source) ||
 		!array_key_exists('time', $source) ||
@@ -39,8 +41,6 @@ try {
 	
 		throw new Exception("No name or session given", NO_PLAYER);
 	}
-	
-	$writer->startElement("submission");
 
 	$stmt = $dbh->prepare("SELECT `id` FROM `maps` WHERE `filename` = :filename LIMIT 1;");
 	$stmt->bindValue('filename', $source['map']);
