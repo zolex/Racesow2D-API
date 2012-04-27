@@ -16,8 +16,26 @@ try {
 	$limit = $_GET['limit'] ? $_GET['limit'] : 50;
 	
 	require('../dbh.php');	
-	$stmt = $dbh->prepare("SELECT `p`.`name` AS `player`, `h`.`time`, `h`.`created_at`, `h`.`races` FROM `highscores` `h` INNER JOIN `maps` `m` ON `m`.`id` = `h`.`map_id` INNER JOIN `players` `p` ON `p`.`id` = `h`.`player_id` WHERE `m`.`name` = :name ORDER BY `h`.`time` ASC LIMIT " . $offset . "," . $limit . ";");
+	
+	$stmt = $dbh->prepare("SELECT `map_id` AS `id`, COUNT(`player_id`) AS `num` FROM `highscores` `h` INNER JOIN `maps` `m` ON `m`.`id` = `h`.`map_id` WHERE `m`.`name` = :name GROUP BY `map_id`;");
 	$stmt->bindValue("name", $_GET['name']);
+	if (!$stmt->execute()) {
+	
+		throw new Exception("Internal error. Please try again later.");
+	}
+	
+	if (!$map = $stmt->fetchObject()) {
+	
+		throw new Exception("map not found.");
+	}
+	
+	$writer->startElement("map");
+	$writer->startElement("count");
+	$writer->text($map->num);
+	$writer->endElement();
+	
+	$stmt = $dbh->prepare("SELECT `p`.`name` AS `player`, `h`.`time`, `h`.`created_at`, `h`.`races` FROM `highscores` `h` INNER JOIN `players` `p` ON `p`.`id` = `h`.`player_id` WHERE `h`.`map_id` = :map_id ORDER BY `h`.`time` ASC LIMIT " . $offset . "," . $limit . ";");
+	$stmt->bindValue("map_id", $map->id);
 	
 	if (!$stmt->execute()) {
 	
@@ -50,6 +68,7 @@ try {
 		$lastMap = $position->map;
 	}
 	
+	$writer->endElement();
 	$writer->endElement();
 		
 } catch (Exception $e) {

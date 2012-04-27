@@ -11,6 +11,22 @@ try {
 	$limit = $_GET['limit'] ? $_GET['limit'] : 50;
 	
 	require('../dbh.php');	
+	$stmt = $dbh->prepare("SELECT COUNT(`id`) FROM `players`;");
+	if (!$stmt->execute()) {
+	
+		throw new Exception("Internal error. Please try again later.");
+	}
+	
+	if (!$num = $stmt->fetchColumn()) {
+	
+		throw new Exception("No players found.");
+	}
+	
+	$writer->startElement("ranking");
+	$writer->startElement("count");
+	$writer->text($num);
+	$writer->endElement();
+	
 	$stmt = $dbh->prepare("SELECT `name`, `points` FROM `players` ORDER BY `points` DESC LIMIT " . $offset . "," . $limit . ";");
 	if (!$stmt->execute()) {
 	
@@ -35,6 +51,7 @@ try {
 		$writer->endElement();
 	}
 	
+	$writer->endElement();
 	$writer->endElement();
 		
 } catch (Exception $e) {
