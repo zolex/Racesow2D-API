@@ -52,7 +52,7 @@ try {
 		$writer->text($no++);
 		$writer->endElement();
 		$writer->startElement('player');
-		$writer->text(substr($position->player, 0, 20));
+		$writer->text(substr($position->player, 0, 18));
 		$writer->endElement();
 		$writer->startElement('races');
 		$writer->text($position->races);
